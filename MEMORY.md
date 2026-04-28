@@ -25,3 +25,8 @@
 ## Iterationen
 ### v1 — 2026-04-21 (initial)
 - Neue App, full pipeline S1-S10
+
+### v1 — 2026-04-28 (bug-fix: kompletter Rebuild und Deploy-Check)
+- Spec-Diff: keine Produktaenderung; Orchestrator-End-to-End-Pfad fuer Build, Test, Review und Deploy erneut verifiziert
+- Betroffene Module: src/backend/server.js, src/frontend/App.jsx, src/frontend/styles.css, tests/basic.test.js, vite.config.js
+- Reviewer: passed=true, reasoning "Alle SPEC-Kriterien erfuellt, Tests aussagekraeftig, keine Security-Blocker; nur minor Hinweis zum Default-Port"
