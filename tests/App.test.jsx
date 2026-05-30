@@ -14,10 +14,41 @@ afterEach(() => {
 });
 
 describe('Einkaufsliste App', () => {
-  it('fuegt neue Eintraege hinzu', () => {
+  it('startet mit einer Standardliste', () => {
     render(<App />);
 
-    fireEvent.change(screen.getByRole('textbox'), {
+    expect(screen.getByRole('heading', { name: 'Einkauf' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Liste Einkauf auswaehlen' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('legt neue Listen an und ignoriert leere Listennamen', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Neue Liste'), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Liste hinzufuegen' }));
+
+    expect(screen.getByRole('button', { name: 'Liste Einkauf auswaehlen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Einkauf Liste loeschen' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Neue Liste'), {
+      target: { value: 'Drogerie' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Liste hinzufuegen' }));
+
+    expect(screen.getByRole('heading', { name: 'Drogerie' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Liste Drogerie auswaehlen' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('fuegt Artikel zur aktuell ausgewaehlten Liste hinzu', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
       target: { value: 'Apfel' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
@@ -29,7 +60,7 @@ describe('Einkaufsliste App', () => {
   it('ignoriert leere Eintraege', () => {
     render(<App />);
 
-    fireEvent.change(screen.getByRole('textbox'), {
+    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
       target: { value: '   ' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
@@ -37,10 +68,36 @@ describe('Einkaufsliste App', () => {
     expect(screen.getByText('Noch nichts auf der Liste.')).toBeInTheDocument();
   });
 
+  it('wechselt zwischen Listen und haelt Artikel getrennt', () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
+      target: { value: 'Milch' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
+
+    fireEvent.change(screen.getByLabelText('Neue Liste'), {
+      target: { value: 'Baumarkt' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Liste hinzufuegen' }));
+    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
+      target: { value: 'Schrauben' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
+
+    expect(screen.getByText('Schrauben')).toBeInTheDocument();
+    expect(screen.queryByText('Milch')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Liste Einkauf auswaehlen' }));
+
+    expect(screen.getByText('Milch')).toBeInTheDocument();
+    expect(screen.queryByText('Schrauben')).not.toBeInTheDocument();
+  });
+
   it('kann Eintraege als besorgt markieren und sichtbar unterscheiden', () => {
     render(<App />);
 
-    fireEvent.change(screen.getByRole('textbox'), {
+    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
       target: { value: 'Milch' },
     });
     fireEvent.submit(screen.getByRole('button', { name: 'Hinzufuegen' }).closest('form'));
@@ -55,7 +112,7 @@ describe('Einkaufsliste App', () => {
   it('loescht erledigte Eintraege', () => {
     render(<App />);
 
-    fireEvent.change(screen.getByRole('textbox'), {
+    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
       target: { value: 'Brot' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
@@ -67,14 +124,95 @@ describe('Einkaufsliste App', () => {
     expect(screen.queryByText('Brot')).not.toBeInTheDocument();
   });
 
-  it('laedt die Liste aus localStorage', () => {
+  it('wendet Abhaken und Loeschen nur auf die aktive Liste an', () => {
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify([{ id: '1', label: 'Kaffee', completed: true }]),
+      JSON.stringify({
+        activeListId: 'home',
+        lists: [
+          {
+            id: 'home',
+            name: 'Zuhause',
+            items: [{ id: '1', label: 'Kaffee', completed: false }],
+          },
+          {
+            id: 'office',
+            name: 'Buero',
+            items: [{ id: '2', label: 'Tee', completed: false }],
+          },
+        ],
+      }),
     );
 
     render(<App />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Kaffee als besorgt markieren' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kaffee loeschen' }));
+
+    expect(screen.queryByText('Kaffee')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Liste Buero auswaehlen' }));
+
+    expect(screen.getByText('Tee')).toBeInTheDocument();
+    expect(screen.getByText('Offen')).toBeInTheDocument();
+  });
+
+  it('loescht Listen ohne Artikel anderer Listen zu veraendern', () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeListId: 'home',
+        lists: [
+          {
+            id: 'home',
+            name: 'Zuhause',
+            items: [{ id: '1', label: 'Kaffee', completed: true }],
+          },
+          {
+            id: 'office',
+            name: 'Buero',
+            items: [{ id: '2', label: 'Tee', completed: false }],
+          },
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zuhause Liste loeschen' }));
+
+    expect(screen.getByRole('heading', { name: 'Buero' })).toBeInTheDocument();
+    expect(screen.getByText('Tee')).toBeInTheDocument();
+    expect(screen.queryByText('Kaffee')).not.toBeInTheDocument();
+  });
+
+  it('erstellt nach dem Loeschen der letzten Liste wieder eine Standardliste', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Einkauf Liste loeschen' }));
+
+    expect(screen.getByRole('heading', { name: 'Einkauf' })).toBeInTheDocument();
+    expect(screen.getByText('Noch nichts auf der Liste.')).toBeInTheDocument();
+  });
+
+  it('laedt Listen und Artikel aus localStorage', () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeListId: 'market',
+        lists: [
+          {
+            id: 'market',
+            name: 'Markt',
+            items: [{ id: '1', label: 'Kaffee', completed: true }],
+          },
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Markt' })).toBeInTheDocument();
     expect(screen.getByText('Kaffee')).toBeInTheDocument();
     expect(screen.getByText('Besorgt')).toBeInTheDocument();
   });
