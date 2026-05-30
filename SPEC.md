@@ -72,3 +72,67 @@ Ein spaeterer nativer Run hat eine unvollstaendige Vite-only-Struktur erzeugt un
 - Express muss `/health` liefern und nach `npm run build` die Vite-`dist/` fuer `/` ausliefern.
 - Tests duerfen keine Platzhalter sein und muessen ohne dauerhaft laufenden externen Server durchlaufen.
 - Starte Server fuer Smoke-Checks nur im Hintergrund und beende ihn danach.
+
+---
+
+# SPEC - Einkaufsliste v1.1
+
+**Slug:** einkaufsliste
+**Iteration:** v1.1
+**Type:** feature
+**Port:** 3106
+**Eingegangen:** 2026-05-29T19:48:16Z
+
+## Beschreibung
+
+Kevin: "Erweitere die Einkaufsliste um ein Feature, dass man aus mehrere Artikeln eigene Listen bilden kann."
+
+Erweitere die bestehende Einkaufslisten-App so, dass Nutzer mehrere eigene Listen anlegen und verwalten koennen. Jede Liste enthaelt ihre eigenen Artikel. Die App bleibt ein kleines Alltagstool, keine Landingpage.
+
+## Acceptance Criteria
+
+- [ ] Nutzer koennen neue eigene Listen mit Namen anlegen.
+- [ ] Leere Listennamen werden nicht angelegt.
+- [ ] Nutzer koennen zwischen vorhandenen Listen wechseln.
+- [ ] Artikel werden immer der aktuell ausgewaehlten Liste hinzugefuegt.
+- [ ] Abhaken und Loeschen von Artikeln wirkt nur auf die aktuell ausgewaehlte Liste.
+- [ ] Jede Liste behaelt ihre eigenen Artikel getrennt von anderen Listen.
+- [ ] Listen und Artikel bleiben bei Seiten-Reload per LocalStorage erhalten.
+- [ ] Mindestens eine Standardliste existiert, wenn noch keine Daten gespeichert sind.
+- [ ] Eine Liste kann geloescht werden, ohne die Artikel anderer Listen zu veraendern.
+- [ ] Wenn die aktive Liste geloescht wird, waehlt die App eine sinnvolle verbleibende Liste oder erstellt wieder eine Standardliste.
+- [ ] `GET /health` liefert weiter JSON `{ "ok": true }`.
+- [ ] Tests decken Listen anlegen, Listenwechsel, getrennte Artikel, Artikelfunktionen pro Liste, Listenloeschen und Health ab.
+
+## Stack-Pflicht
+
+- Bestehenden Stack beibehalten: Node.js, Express, Vite + React, Vitest/Testing Library.
+- `process.env.PORT` bleibt die Port-Quelle; Fallback aus `PORT.txt` nur wenn `process.env.PORT` nicht gesetzt ist.
+- `npm test` muss gruen sein.
+- `npm run build` muss gruen sein.
+- `npm start` muss den Express-Server starten und `dist/` ausliefern.
+
+## Design- und UX-Hinweise
+
+- Erste Ansicht bleibt direkt die Arbeitsoberflaeche.
+- Listen-Auswahl soll schnell scannbar sein, z. B. als Seitenleiste, Tabs oder kompakte Liste.
+- Die aktive Liste muss klar erkennbar sein.
+- Aktionen fuer Listen und Artikel sollen nicht verwechselt werden.
+- Mobile und Desktop muessen sauber funktionieren.
+
+## Nicht-Ziele
+
+- Kein Login.
+- Keine Mehrbenutzer-Synchronisierung.
+- Keine externe Datenbank.
+- Keine Drag-and-drop-Sortierung.
+- Kein Teilen von Listen.
+
+## Definition of Done
+
+- Tests gruen
+- `npm run build` erfolgreich
+- App startet auf Port aus `process.env.PORT`
+- `/health` Endpoint OK
+- Root-Route liefert HTML
+- Git-Commit fuer v1.1 erzeugt
