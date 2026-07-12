@@ -28,6 +28,6 @@
 
 ### v2.0.2 (2026-07-12)
 - Auftrag: Fokus-Rueckgabe der App-Dialoge im echten Chromium reparieren und mit einem Browser-Regressionstest absichern.
-- Codex-Commits: ausstehend
-- Deploy: ausstehend
-- Besonderheiten: JSDOM meldete die Fokus-Rueckgabe in v2.0.1 faelschlich gruen; die reale Abnahme zeigte nach Escape `BODY` statt des Dialogausloesers als aktives Element.
+- Codex-Commits: `5712d6d`
+- Deploy: 2026-07-12, Port 3106, PM2 `einkaufsliste`, GitHub https://github.com/Alf-Infra/einkaufsliste
+- Besonderheiten: Die zentrale Fokuslogik stellt den Fokus im echten Chromium nach Escape und Abbrechen exakt am Ausloeser wieder her, mit sicherem Fallback fuer alle gemeinsamen Dialoge. Final 21/21 Tests, Chromium-Regressionen und Review-Gate gruen.
