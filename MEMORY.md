@@ -25,3 +25,9 @@
 - Codex-Commits: `7fb18df`
 - Deploy: 2026-07-12, Port 3106, PM2 `einkaufsliste`, GitHub https://github.com/Alf-Infra/einkaufsliste
 - Besonderheiten: Chromium-Layouttests bestaetigen 320/390/430 px ohne horizontalen Overflow; native Browserdialoge wurden durch zugaengliche App-Dialoge ersetzt und UI/Fokuslogik modularisiert. Final 21/21 Tests und Review-Gate gruen; Schema-v3-Daten bleiben erhalten.
+
+### v2.0.2 (2026-07-12)
+- Auftrag: Fokus-Rueckgabe der App-Dialoge im echten Chromium reparieren und mit einem Browser-Regressionstest absichern.
+- Codex-Commits: ausstehend
+- Deploy: ausstehend
+- Besonderheiten: JSDOM meldete die Fokus-Rueckgabe in v2.0.1 faelschlich gruen; die reale Abnahme zeigte nach Escape `BODY` statt des Dialogausloesers als aktives Element.

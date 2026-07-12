@@ -327,3 +327,58 @@ Nach dem v2.0-Deployment wurde die reale Anwendung unabhaengig in Desktop- und M
 - UI nachvollziehbar modularisiert und gemeinsame Dialoglogik wiederverwendet.
 - Tests, Browser-Layouttest, Build und HTTP-Smoke gruen.
 - Git-Commit fuer v2.0.1 erzeugt.
+
+---
+
+# SPEC - Einkaufsliste v2.0.2
+
+**Slug:** einkaufsliste
+**Iteration:** v2.0.2
+**Type:** bug-fix
+**Port:** 3106
+**Eingegangen:** 2026-07-12T09:34:25Z
+
+## Beschreibung
+
+Die reale Post-Deploy-Abnahme von v2.0.1 hat einen verbleibenden Accessibility-Fehler nachgewiesen: Initialfokus, Fokusfalle und Escape-Schliessen funktionieren, aber im echten Chromium kehrt der Fokus nach dem Schliessen nicht zum Dialogausloeser zurueck. Stattdessen wird `document.body` aktiv. Der vorhandene JSDOM-Test liefert hierzu ein falsch positives Ergebnis.
+
+Diese Iteration behebt ausschliesslich die reale Fokus-Rueckgabe und erweitert den Browser-Test so, dass derselbe Fehler nicht erneut unbemerkt deployt werden kann.
+
+## Reproduzierbarer Ist-Fehler
+
+1. App bei 390 x 844 in Chromium laden und den Listen-Drawer oeffnen.
+2. `Umbenennen` per Tastatur fokussieren und per Enter oeffnen.
+3. Dialog per Escape schliessen.
+4. Erwartet: `document.activeElement` ist wieder `Umbenennen`.
+5. Ist in v2.0.1: `document.activeElement` ist `BODY`.
+
+## Acceptance Criteria
+
+- [ ] Nach Escape kehrt der Fokus im echten Chromium zum exakten Dialogausloeser zurueck.
+- [ ] Dasselbe funktioniert beim Schliessen ueber Schliessen- und Abbrechen-Button.
+- [ ] Die Fokus-Rueckgabe funktioniert fuer Umbenennen-, Listenloesch-, Einkaufsabschluss- und Artikeldialog.
+- [ ] Maus- und Tastaturausloeser werden korrekt behandelt; bei nicht mehr existierendem Ausloeser gibt es einen sicheren Fallback ohne Laufzeitfehler.
+- [ ] Initialfokus, Fokusfalle und Escape-Schliessen bleiben funktionsfaehig.
+- [ ] Die gemeinsame Dialog-/Fokusabstraktion bleibt zentral; keine kopierten Sonderloesungen pro Dialog.
+- [ ] Ein echter Playwright-/Chromium-Test fokussiert `Umbenennen`, oeffnet per Enter, schliesst per Escape und prueft danach direkt `document.activeElement === trigger`.
+- [ ] Der Browser-Test prueft mindestens einen zweiten Schliessweg, beispielsweise `Abbrechen`, und darf kein JSDOM-, Regex- oder CSS-Ersatztest sein.
+- [ ] Der Fokus-Test ist Teil eines reproduzierbaren npm-Scripts und laeuft zusammen mit dem bestehenden Layouttest.
+- [ ] Bestehende 21 Tests, Layouttests bei 320/390/430 px, Build, Root-Route und `/health` bleiben gruen.
+- [ ] LocalStorage-Daten und Schema bleiben unveraendert.
+
+## Implementierungshinweise
+
+- Die Ursache liegt wahrscheinlich im Lebenszyklus oder in der Stabilitaet der gespeicherten Ausloeserreferenz beim Dialog-Unmount. Nicht nur einen Timeout erhoehen, sondern Referenz- und Cleanup-Logik robust loesen.
+- Der reale Browser-Test muss gegen das gebaute, von Express ausgelieferte Frontend laufen und Browser sowie Testserver sauber beenden.
+
+## Nicht-Ziele
+
+- Keine neuen Produktfeatures oder visuellen Umbauten.
+- Keine Aenderung des Datenmodells oder LocalStorage-Schemas.
+
+## Definition of Done
+
+- Reproduktion ist in echtem Chromium behoben.
+- Browser-Regressionstest waere gegen v2.0.1 rot und ist mit v2.0.2 gruen.
+- Bestehende Test-, Layout-, Build- und HTTP-Gates bleiben gruen.
+- Git-Commit fuer v2.0.2 erzeugt.
