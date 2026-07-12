@@ -1,264 +1,75 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { Check, Circle, ListPlus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
-import { createDefaultList, loadState, saveState } from './storage';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Check, ChevronDown, ChevronUp, Copy, Edit3, ListPlus, Menu, Plus, Search, ShoppingCart, Star, Trash2, X } from 'lucide-react';
+import { activeList, duplicateOpenItem, filterItems, groupItems, reducer, sortItems } from './model';
+import { createDefaultState, loadHistory, loadState, saveHistory, saveState } from './storage';
 
-function createItem(label) {
-  return {
-    id: crypto.randomUUID(),
-    label,
-    completed: false,
-  };
+const CATEGORIES = ['Obst & Gemüse', 'Kühlregal', 'Backwaren', 'Getränke', 'Haushalt', 'Drogerie', 'Sonstiges'];
+const emptyDraft = { name: '', quantity: '', unit: '', category: 'Sonstiges', note: '', important: false };
+
+function ItemDialog({ initial, onClose, onSave, duplicate }) {
+  const [draft, setDraft] = useState(initial || emptyDraft);
+  const nameRef = useRef(null);
+  useEffect(() => nameRef.current?.focus(), []);
+  const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
+  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="item-dialog-title" onSubmit={(e) => { e.preventDefault(); onSave(draft); }}>
+      <div className="dialog-title"><h2 id="item-dialog-title">{initial?.id ? 'Artikel bearbeiten' : 'Artikeldetails'}</h2><button type="button" className="icon ghost" onClick={onClose} aria-label="Dialog schließen"><X /></button></div>
+      <label>Name<input ref={nameRef} value={draft.name} onChange={(e) => set('name', e.target.value)} required /></label>
+      {duplicate && <p className="inline-alert" role="alert">„{duplicate.name}“ ist bereits offen. Bitte bearbeite den vorhandenen Artikel.</p>}
+      <div className="form-grid"><label>Menge<input value={draft.quantity} onChange={(e) => set('quantity', e.target.value)} inputMode="decimal" /></label><label>Einheit<input value={draft.unit} onChange={(e) => set('unit', e.target.value)} placeholder="kg, Packung …" /></label></div>
+      <label>Kategorie<select value={draft.category} onChange={(e) => set('category', e.target.value)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+      <label>Notiz<textarea value={draft.note} onChange={(e) => set('note', e.target.value)} rows="2" /></label>
+      <label className="check-label"><input type="checkbox" checked={draft.important} onChange={(e) => set('important', e.target.checked)} />Als wichtig markieren</label>
+      <div className="dialog-actions"><button type="button" className="button secondary" onClick={onClose}>Abbrechen</button><button className="button primary">Speichern</button></div>
+    </form>
+  </div>;
 }
 
-function createList(name) {
-  return {
-    id: crypto.randomUUID(),
-    name,
-    items: [],
-  };
+function Sidebar({ state, current, dispatch, open, close }) {
+  const [name, setName] = useState('');
+  const rename = () => { const next = prompt('Neuer Listenname', current.name); if (next) dispatch({ type: 'RENAME_LIST', name: next }); };
+  const remove = (list) => { if (list.items.length && !confirm(`Liste „${list.name}“ mit ${list.items.length} Artikeln löschen?`)) return; dispatch({ type: 'DELETE_LIST', id: list.id }); };
+  return <><div className={`drawer-scrim ${open ? 'show' : ''}`} onClick={close} /><aside className={`sidebar ${open ? 'open' : ''}`} aria-label="Listenverwaltung">
+    <div className="brand"><span className="brand-mark"><ShoppingCart /></span><div><strong>Plan & Kauf</strong><small>Local-first</small></div><button className="icon ghost mobile-only" onClick={close} aria-label="Listen schließen"><X /></button></div>
+    <form className="new-list" onSubmit={(e) => { e.preventDefault(); if (name.trim()) { dispatch({ type: 'ADD_LIST', name }); setName(''); } }}><label className="sr-only" htmlFor="new-list">Neue Liste</label><input id="new-list" value={name} onChange={(e) => setName(e.target.value)} placeholder="Neue Liste"/><button className="icon primary" aria-label="Liste anlegen"><ListPlus /></button></form>
+    <nav aria-label="Eigene Listen">{state.lists.map((list) => <button key={list.id} className={`list-link ${list.id === current.id ? 'active' : ''}`} aria-pressed={list.id === current.id} onClick={() => { dispatch({ type: 'SELECT_LIST', id: list.id }); close(); }}><span><strong>{list.name}</strong><small>{list.items.filter((i) => !i.completed).length} offen</small></span><span className="count">{list.items.length}</span></button>)}</nav>
+    <div className="sidebar-actions"><button onClick={rename}><Edit3 />Umbenennen</button><button onClick={() => dispatch({ type: 'DUPLICATE_LIST' })}><Copy />Duplizieren</button><button className="danger" onClick={() => remove(current)}><Trash2 />Löschen</button></div>
+  </aside></>;
+}
+
+function ItemRow({ item, dispatch, edit, remove, draggable, onDrop }) {
+  const meta = [item.quantity, item.unit, item.category].filter(Boolean).join(' · ');
+  return <li className={`item ${item.completed ? 'done' : ''} ${item.important ? 'important' : ''}`} draggable={draggable} onDragStart={(e) => e.dataTransfer.setData('text/item-id', item.id)} onDragOver={(e) => draggable && e.preventDefault()} onDrop={(e) => onDrop(e.dataTransfer.getData('text/item-id'), item.id)}>
+    <button className="check" onClick={() => dispatch({ type: 'TOGGLE_ITEM', id: item.id })} aria-label={`${item.name} als ${item.completed ? 'offen' : 'erledigt'} markieren`} aria-pressed={item.completed}>{item.completed && <Check />}</button>
+    <button className="item-copy" onClick={() => edit(item)} aria-label={`${item.name} bearbeiten`}><span className="item-name">{item.important && <Star aria-label="Wichtig" />} {item.name}</span><small>{meta}{item.note && <>{meta && ' · '}{item.note}</>}</small></button>
+    {draggable && <div className="move-buttons"><button onClick={() => dispatch({ type: 'MOVE_ITEM', id: item.id, delta: -1 })} aria-label={`${item.name} nach oben`}><ChevronUp /></button><button onClick={() => dispatch({ type: 'MOVE_ITEM', id: item.id, delta: 1 })} aria-label={`${item.name} nach unten`}><ChevronDown /></button></div>}
+    <button className="icon ghost danger" onClick={() => remove(item)} aria-label={`${item.name} löschen`}><Trash2 /></button>
+  </li>;
 }
 
 export default function App() {
-  const [state, setState] = useState(() => ({
-    activeListId: 'default',
-    lists: [createDefaultList()],
-  }));
-  const [itemDraft, setItemDraft] = useState('');
-  const [listDraft, setListDraft] = useState('');
-  const itemInputId = useId();
-  const listInputId = useId();
-  const hasLoadedState = useRef(false);
-
-  useEffect(() => {
-    setState(loadState());
-    hasLoadedState.current = true;
-  }, []);
-
-  useEffect(() => {
-    if (!hasLoadedState.current) {
-      return;
-    }
-
-    saveState(state);
-  }, [state]);
-
-  const activeList =
-    state.lists.find((list) => list.id === state.activeListId) ?? state.lists[0];
-  const activeItems = activeList?.items ?? [];
-  const completedCount = activeItems.filter((item) => item.completed).length;
-
-  function updateActiveItems(updater) {
-    setState((currentState) => ({
-      ...currentState,
-      lists: currentState.lists.map((list) =>
-        list.id === currentState.activeListId
-          ? { ...list, items: updater(list.items) }
-          : list,
-      ),
-    }));
-  }
-
-  function handleItemSubmit(event) {
-    event.preventDefault();
-    const normalized = itemDraft.trim();
-
-    if (!normalized) {
-      return;
-    }
-
-    updateActiveItems((currentItems) => [...currentItems, createItem(normalized)]);
-    setItemDraft('');
-  }
-
-  function handleListSubmit(event) {
-    event.preventDefault();
-    const normalized = listDraft.trim();
-
-    if (!normalized) {
-      return;
-    }
-
-    const nextList = createList(normalized);
-    setState((currentState) => ({
-      activeListId: nextList.id,
-      lists: [...currentState.lists, nextList],
-    }));
-    setListDraft('');
-  }
-
-  function toggleItem(id) {
-    updateActiveItems((currentItems) =>
-      currentItems.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item,
-      ),
-    );
-  }
-
-  function deleteItem(id) {
-    updateActiveItems((currentItems) => currentItems.filter((item) => item.id !== id));
-  }
-
-  function deleteList(id) {
-    setState((currentState) => {
-      const remainingLists = currentState.lists.filter((list) => list.id !== id);
-      const lists = remainingLists.length > 0 ? remainingLists : [createDefaultList()];
-      const activeListStillExists = lists.some(
-        (list) => list.id === currentState.activeListId,
-      );
-
-      return {
-        activeListId: activeListStillExists ? currentState.activeListId : lists[0].id,
-        lists,
-      };
-    });
-  }
-
-  return (
-    <main className="app-shell">
-      <section className="panel" aria-label="Einkaufslisten">
-        <aside className="list-panel" aria-label="Eigene Listen">
-          <div className="list-panel-header">
-            <h2>Listen</h2>
-            <span>{state.lists.length}</span>
-          </div>
-
-          <form className="list-composer" onSubmit={handleListSubmit}>
-            <label className="sr-only" htmlFor={listInputId}>
-              Neue Liste
-            </label>
-            <input
-              id={listInputId}
-              name="list"
-              type="text"
-              placeholder="Neue Liste"
-              value={listDraft}
-              onChange={(event) => setListDraft(event.target.value)}
-            />
-            <button type="submit" className="icon-button" aria-label="Liste hinzufuegen">
-              <ListPlus size={18} aria-hidden="true" />
-            </button>
-          </form>
-
-          <ul className="lists" aria-label="Listenauswahl">
-            {state.lists.map((list) => (
-              <li key={list.id} className="list-row">
-                <button
-                  type="button"
-                  className={`list-select ${
-                    list.id === activeList.id ? 'is-active' : ''
-                  }`}
-                  aria-label={`Liste ${list.name} auswaehlen`}
-                  onClick={() =>
-                    setState((currentState) => ({
-                      ...currentState,
-                      activeListId: list.id,
-                    }))
-                  }
-                  aria-pressed={list.id === activeList.id}
-                >
-                  <span>{list.name}</span>
-                  <small>
-                    {list.items.filter((item) => !item.completed).length} offen
-                  </small>
-                </button>
-                <button
-                  type="button"
-                  className="list-delete-button"
-                  onClick={() => deleteList(list.id)}
-                  aria-label={`${list.name} Liste loeschen`}
-                  title="Liste loeschen"
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        <div className="work-panel">
-          <header className="panel-header">
-            <div>
-              <p className="eyebrow">Alltagstool</p>
-              <h1>{activeList.name}</h1>
-            </div>
-            <div className="status-chip">
-              <ShoppingCart size={16} aria-hidden="true" />
-              <span>
-                {completedCount}/{activeItems.length || 0} besorgt
-              </span>
-            </div>
-          </header>
-
-          <form className="composer" onSubmit={handleItemSubmit}>
-            <label className="sr-only" htmlFor={itemInputId}>
-              Neues Einkaufselement
-            </label>
-            <input
-              id={itemInputId}
-              name="item"
-              type="text"
-              placeholder="z. B. Tomaten, Hafermilch, Spuelmittel"
-              value={itemDraft}
-              onChange={(event) => setItemDraft(event.target.value)}
-            />
-            <button type="submit" className="primary-button">
-              <Plus size={18} aria-hidden="true" />
-              <span>Hinzufuegen</span>
-            </button>
-          </form>
-
-          <ul className="item-list" aria-label="Einkaufseintraege">
-            {activeItems.length === 0 ? (
-              <li className="empty-state">Noch nichts auf der Liste.</li>
-            ) : (
-              activeItems.map((item) => (
-                <li
-                  key={item.id}
-                  className={`item-row ${item.completed ? 'is-complete' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className="toggle-button"
-                    onClick={() => toggleItem(item.id)}
-                    aria-pressed={item.completed}
-                    aria-label={
-                      item.completed
-                        ? `${item.label} als offen markieren`
-                        : `${item.label} als besorgt markieren`
-                    }
-                  >
-                    {item.completed ? (
-                      <Check size={18} aria-hidden="true" />
-                    ) : (
-                      <Circle size={18} aria-hidden="true" />
-                    )}
-                  </button>
-
-                  <div className="item-copy">
-                    <span>{item.label}</span>
-                    <small>{item.completed ? 'Besorgt' : 'Offen'}</small>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="delete-button"
-                    onClick={() => deleteItem(item.id)}
-                    disabled={!item.completed}
-                    aria-label={`${item.label} loeschen`}
-                    title={
-                      item.completed
-                        ? 'Eintrag loeschen'
-                        : 'Erst als besorgt markieren'
-                    }
-                  >
-                    <Trash2 size={18} aria-hidden="true" />
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </section>
+  const [state, dispatch] = useReducer(reducer, undefined, () => typeof window === 'undefined' ? createDefaultState() : loadState());
+  const [draft, setDraft] = useState(''); const [details, setDetails] = useState(null); const [duplicate, setDuplicate] = useState(null);
+  const [query, setQuery] = useState(''); const [openOnly, setOpenOnly] = useState(false); const [drawer, setDrawer] = useState(false);
+  const [undo, setUndo] = useState(null); const [history, setHistory] = useState(() => typeof window === 'undefined' ? [] : loadHistory());
+  const current = activeList(state); const completed = current.items.filter((i) => i.completed).length;
+  useEffect(() => saveState(state), [state]); useEffect(() => saveHistory(history), [history]);
+  useEffect(() => { if (!undo) return; const timer = setTimeout(() => setUndo(null), 6000); return () => clearTimeout(timer); }, [undo]);
+  const visible = useMemo(() => sortItems(filterItems(current.items, query), state.sort).filter((i) => !openOnly || !i.completed), [current.items, query, state.sort, openOnly]);
+  const groups = state.mode === 'shop' ? groupItems(visible) : { Artikel: visible };
+  const submitQuick = (e) => { e.preventDefault(); const name = draft.trim(); if (!name) return; const found = duplicateOpenItem(current.items, name); if (found) { setDuplicate(found); setDetails({ ...found }); return; } dispatch({ type: 'ADD_ITEM', item: { ...emptyDraft, name } }); setHistory((h) => [name, ...h.filter((x) => x.toLowerCase() !== name.toLowerCase())]); setDraft(''); };
+  const saveItem = (item) => { if (!item.name.trim()) return; const found = duplicateOpenItem(current.items, item.name, item.id); if (found) { setDuplicate(found); return; } dispatch({ type: item.id ? 'UPDATE_ITEM' : 'ADD_ITEM', item }); setHistory((h) => [item.name.trim(), ...h.filter((x) => x.toLowerCase() !== item.name.trim().toLowerCase())]); setDetails(null); setDuplicate(null); };
+  const remove = (item) => { const index = current.items.findIndex((i) => i.id === item.id); dispatch({ type: 'DELETE_ITEM', id: item.id }); setUndo({ item, index, listId: current.id }); };
+  const finish = () => { if (completed && confirm(`${completed} erledigte Artikel entfernen?`)) dispatch({ type: 'COMPLETE_SHOPPING' }); };
+  return <div className="app-layout"><Sidebar state={state} current={current} dispatch={dispatch} open={drawer} close={() => setDrawer(false)} />
+    <main className={`workspace ${state.mode === 'shop' ? 'shopping' : ''}`}>
+      <header className="topbar"><button className="icon ghost mobile-only" onClick={() => setDrawer(true)} aria-label="Listen öffnen"><Menu /></button><div><span className="eyebrow">{state.mode === 'shop' ? 'Einkaufsmodus' : 'Planung'}</span><h1>{current.name}</h1></div><div className="progress" aria-label={`${completed} von ${current.items.length} erledigt`}><span>{completed}/{current.items.length}</span><div><i style={{ width: `${current.items.length ? completed / current.items.length * 100 : 0}%` }} /></div></div><button className="button mode" onClick={() => dispatch({ type: 'SET_MODE', mode: state.mode === 'shop' ? 'plan' : 'shop' })}><ShoppingCart />{state.mode === 'shop' ? 'Planen' : 'Einkaufen'}</button></header>
+      {state.mode === 'plan' && <form className="quick-add" onSubmit={submitQuick}><label className="sr-only" htmlFor="quick-item">Artikel hinzufügen</label><input id="quick-item" list="history" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Was brauchst du?" autoComplete="off"/><datalist id="history">{history.map((x) => <option key={x} value={x} />)}</datalist><button type="button" className="button secondary details" onClick={() => setDetails({ ...emptyDraft, name: draft })}>Details</button><button className="button primary"><Plus />Hinzufügen</button></form>}
+      <section className="toolbar" aria-label="Filtern und sortieren"><label className="search"><Search /><span className="sr-only">Artikel durchsuchen</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name oder Notiz suchen" /></label><label>Sortierung <select value={state.sort} onChange={(e) => dispatch({ type: 'SET_SORT', sort: e.target.value })}><option value="custom">Eigene Reihenfolge</option><option value="category">Kategorie</option><option value="name">Name</option><option value="status">Status</option></select></label>{state.mode === 'shop' && <label className="check-label"><input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />Nur offene</label>}</section>
+      {visible.length === 0 ? <div className="empty"><ShoppingCart /><h2>{query ? 'Nichts gefunden' : 'Die Liste ist bereit'}</h2><p>{query ? 'Versuche einen anderen Suchbegriff.' : 'Füge oben den ersten Artikel hinzu.'}</p></div> : <div className="groups">{Object.entries(groups).map(([group, items]) => <section className="item-group" key={group}><h2>{group}<span>{items.length}</span></h2><ul>{items.map((item) => <ItemRow key={item.id} item={item} dispatch={dispatch} edit={(i) => { setDuplicate(null); setDetails(i); }} remove={remove} draggable={state.sort === 'custom' && state.mode === 'plan'} onDrop={(id, beforeId) => dispatch({ type: 'REORDER_ITEM', id, beforeId })} />)}</ul></section>)}</div>}
+      {state.mode === 'shop' && completed > 0 && <button className="finish button primary" onClick={finish}>Einkauf abschließen</button>}
     </main>
-  );
+    {details && <ItemDialog initial={details} duplicate={duplicate} onClose={() => { setDetails(null); setDuplicate(null); }} onSave={saveItem} />}
+    {undo && <div className="toast" role="status"><span>„{undo.item.name}“ gelöscht</span><button onClick={() => { dispatch({ type: 'RESTORE_ITEM', item: undo.item, index: undo.index, listId: undo.listId }); setUndo(null); }}>Rückgängig</button></div>}
+  </div>;
 }

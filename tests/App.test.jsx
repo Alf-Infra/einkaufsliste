@@ -1,243 +1,66 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import request from 'supertest';
-import App from '../src/App.jsx';
-import { STORAGE_KEY } from '../src/storage';
-import { createApp } from '../src/server';
+import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import request from 'supertest'; import App from '../src/App.jsx'; import { createApp } from '../src/server';
+import { LEGACY_STORAGE_KEY, SCHEMA_VERSION, STORAGE_KEY, createDefaultState, normalizeState } from '../src/storage';
+import { duplicateOpenItem, filterItems, groupItems, reducer, sortItems } from '../src/model';
 
-afterEach(() => {
-  cleanup();
-  window.localStorage.clear();
-});
+afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
+const add = (name) => { fireEvent.change(screen.getByLabelText('Artikel hinzufügen'), { target: { value: name } }); fireEvent.click(screen.getByRole('button', { name: 'Hinzufügen' })); };
 
-describe('Einkaufsliste App', () => {
-  it('startet mit einer Standardliste', () => {
-    render(<App />);
-
-    expect(screen.getByRole('heading', { name: 'Einkauf' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Liste Einkauf auswaehlen' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+describe('Schema und reine Logik', () => {
+  it('migriert v2 label-Artikel verlustfrei in Schema v3', () => {
+    const state = normalizeState({ activeListId: 'a', lists: [{ id: 'a', name: 'Alt', items: [{ id: 'i', label: 'Milch', completed: true }] }] });
+    expect(state.version).toBe(SCHEMA_VERSION); expect(state.lists[0].items[0]).toMatchObject({ id: 'i', name: 'Milch', completed: true, category: 'Sonstiges' });
   });
-
-  it('legt neue Listen an und ignoriert leere Listennamen', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText('Neue Liste'), {
-      target: { value: '   ' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Liste hinzufuegen' }));
-
-    expect(screen.getByRole('button', { name: 'Liste Einkauf auswaehlen' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Einkauf Liste loeschen' })).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Neue Liste'), {
-      target: { value: 'Drogerie' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Liste hinzufuegen' }));
-
-    expect(screen.getByRole('heading', { name: 'Drogerie' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Liste Drogerie auswaehlen' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+  it('normalisiert beschädigte und unvollständige Daten defensiv', () => {
+    expect(normalizeState(null)).toEqual(createDefaultState());
+    const state = normalizeState({ activeListId: 'weg', lists: [{ name: ' Gut ', items: [{ label: '' }, { label: ' Brot ' }] }, null] });
+    expect(state.lists).toHaveLength(1); expect(state.activeListId).toBe(state.lists[0].id); expect(state.lists[0].items[0].name).toBe('Brot');
   });
-
-  it('fuegt Artikel zur aktuell ausgewaehlten Liste hinzu', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
-      target: { value: 'Apfel' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
-
-    expect(screen.getByText('Apfel')).toBeInTheDocument();
-    expect(screen.getByText('Offen')).toBeInTheDocument();
+  it('sucht Name und Notiz, sortiert und gruppiert', () => {
+    const items = [{ id:'1',name:'Zitrone',note:'Bio',category:'Obst',completed:false },{ id:'2',name:'Apfel',note:'rot',category:'Obst',completed:true }];
+    expect(filterItems(items, 'bio')).toHaveLength(1); expect(sortItems(items, 'name')[0].name).toBe('Apfel'); expect(sortItems(items, 'status')[0].name).toBe('Zitrone'); expect(groupItems(items)).toHaveProperty('Erledigt');
   });
-
-  it('ignoriert leere Eintraege', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
-      target: { value: '   ' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
-
-    expect(screen.getByText('Noch nichts auf der Liste.')).toBeInTheDocument();
+  it('erkennt offene Duplikate ohne Großschreibung zu beachten', () => {
+    const items = [{ id:'1',name:'Milch',completed:false },{ id:'2',name:'Brot',completed:true }];
+    expect(duplicateOpenItem(items, 'milch').id).toBe('1'); expect(duplicateOpenItem(items, 'brot')).toBeUndefined();
   });
-
-  it('wechselt zwischen Listen und haelt Artikel getrennt', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
-      target: { value: 'Milch' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
-
-    fireEvent.change(screen.getByLabelText('Neue Liste'), {
-      target: { value: 'Baumarkt' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Liste hinzufuegen' }));
-    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
-      target: { value: 'Schrauben' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
-
-    expect(screen.getByText('Schrauben')).toBeInTheDocument();
-    expect(screen.queryByText('Milch')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Liste Einkauf auswaehlen' }));
-
-    expect(screen.getByText('Milch')).toBeInTheDocument();
-    expect(screen.queryByText('Schrauben')).not.toBeInTheDocument();
+  it('bearbeitet, ordnet um, löscht und stellt Artikel per Reducer wieder her', () => {
+    let state = createDefaultState(); state = reducer(state,{type:'ADD_ITEM',item:{name:'A'}}); state = reducer(state,{type:'ADD_ITEM',item:{name:'B'}}); const [a,b]=state.lists[0].items;
+    state=reducer(state,{type:'UPDATE_ITEM',item:{...a,name:'A+',important:true}}); state=reducer(state,{type:'MOVE_ITEM',id:b.id,delta:-1}); expect(state.lists[0].items.map(i=>i.name)).toEqual(['B','A+']);
+    state=reducer(state,{type:'DELETE_ITEM',id:b.id}); state=reducer(state,{type:'RESTORE_ITEM',item:b,index:0}); expect(state.lists[0].items[0].id).toBe(b.id);
   });
-
-  it('kann Eintraege als besorgt markieren und sichtbar unterscheiden', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
-      target: { value: 'Milch' },
-    });
-    fireEvent.submit(screen.getByRole('button', { name: 'Hinzufuegen' }).closest('form'));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Milch als besorgt markieren' }),
-    );
-
-    expect(screen.getByText('Besorgt')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Milch loeschen' })).toBeEnabled();
-  });
-
-  it('loescht erledigte Eintraege', () => {
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText('Neues Einkaufselement'), {
-      target: { value: 'Brot' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Hinzufuegen' }));
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Brot als besorgt markieren' }),
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Brot loeschen' }));
-
-    expect(screen.queryByText('Brot')).not.toBeInTheDocument();
-  });
-
-  it('wendet Abhaken und Loeschen nur auf die aktive Liste an', () => {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        activeListId: 'home',
-        lists: [
-          {
-            id: 'home',
-            name: 'Zuhause',
-            items: [{ id: '1', label: 'Kaffee', completed: false }],
-          },
-          {
-            id: 'office',
-            name: 'Buero',
-            items: [{ id: '2', label: 'Tee', completed: false }],
-          },
-        ],
-      }),
-    );
-
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Kaffee als besorgt markieren' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Kaffee loeschen' }));
-
-    expect(screen.queryByText('Kaffee')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Liste Buero auswaehlen' }));
-
-    expect(screen.getByText('Tee')).toBeInTheDocument();
-    expect(screen.getByText('Offen')).toBeInTheDocument();
-  });
-
-  it('loescht Listen ohne Artikel anderer Listen zu veraendern', () => {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        activeListId: 'home',
-        lists: [
-          {
-            id: 'home',
-            name: 'Zuhause',
-            items: [{ id: '1', label: 'Kaffee', completed: true }],
-          },
-          {
-            id: 'office',
-            name: 'Buero',
-            items: [{ id: '2', label: 'Tee', completed: false }],
-          },
-        ],
-      }),
-    );
-
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Zuhause Liste loeschen' }));
-
-    expect(screen.getByRole('heading', { name: 'Buero' })).toBeInTheDocument();
-    expect(screen.getByText('Tee')).toBeInTheDocument();
-    expect(screen.queryByText('Kaffee')).not.toBeInTheDocument();
-  });
-
-  it('erstellt nach dem Loeschen der letzten Liste wieder eine Standardliste', () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Einkauf Liste loeschen' }));
-
-    expect(screen.getByRole('heading', { name: 'Einkauf' })).toBeInTheDocument();
-    expect(screen.getByText('Noch nichts auf der Liste.')).toBeInTheDocument();
-  });
-
-  it('laedt Listen und Artikel aus localStorage', () => {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        activeListId: 'market',
-        lists: [
-          {
-            id: 'market',
-            name: 'Markt',
-            items: [{ id: '1', label: 'Kaffee', completed: true }],
-          },
-        ],
-      }),
-    );
-
-    render(<App />);
-
-    expect(screen.getByRole('heading', { name: 'Markt' })).toBeInTheDocument();
-    expect(screen.getByText('Kaffee')).toBeInTheDocument();
-    expect(screen.getByText('Besorgt')).toBeInTheDocument();
+  it('unterstützt Listen anlegen, umbenennen, duplizieren und löschen', () => {
+    let state=createDefaultState(); state=reducer(state,{type:'ADD_LIST',name:'Markt'}); state=reducer(state,{type:'RENAME_LIST',name:'Wochenmarkt'}); state=reducer(state,{type:'DUPLICATE_LIST'}); expect(state.lists.map(l=>l.name)).toEqual(['Einkauf','Wochenmarkt','Wochenmarkt Kopie']); state=reducer(state,{type:'DELETE_LIST',id:state.activeListId}); expect(state.lists).toHaveLength(2);
   });
 });
 
-describe('Express server', () => {
-  it('liefert /health als JSON', async () => {
-    const response = await request(createApp()).get('/health');
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ ok: true });
+describe('App-Abläufe', () => {
+  it('lädt alte Daten, fügt schnell hinzu und persistiert v3', async () => {
+    localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify({activeListId:'a',lists:[{id:'a',name:'Markt',items:[{id:'1',label:'Kaffee',completed:false}]}]})); render(<App/>); expect(screen.getByText('Kaffee')).toBeInTheDocument(); add('Milch'); expect(screen.getByText('Milch')).toBeInTheDocument(); await waitFor(()=>expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).lists[0].items).toHaveLength(2));
   });
-
-  it('liefert HTML auf / aus dem dist-Verzeichnis', async () => {
-    const staticDir = fs.mkdtempSync(path.join(os.tmpdir(), 'einkaufsliste-dist-'));
-    fs.writeFileSync(
-      path.join(staticDir, 'index.html'),
-      '<!doctype html><html><body><div id="root">ok</div></body></html>',
-      'utf8',
-    );
-
-    const response = await request(createApp({ staticDir })).get('/');
-
-    expect(response.status).toBe(200);
-    expect(response.text).toContain('<!doctype html>');
-    expect(response.text).toContain('<div id="root">ok</div>');
+  it('ignoriert leere Namen und verhindert offene Duplikate zugänglich', () => {
+    render(<App/>); add('   '); expect(screen.getByText('Die Liste ist bereit')).toBeInTheDocument(); add('Milch'); add('milch'); expect(screen.getByRole('alert')).toHaveTextContent('bereits offen');
   });
+  it('erfasst Details, bearbeitet und markiert wichtig', () => {
+    render(<App/>); fireEvent.click(screen.getByRole('button',{name:'Details'})); fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Tomaten'}}); fireEvent.change(screen.getByLabelText('Menge'),{target:{value:'2'}}); fireEvent.click(screen.getByLabelText('Als wichtig markieren')); fireEvent.click(screen.getByRole('button',{name:'Speichern'})); expect(screen.getByText('Tomaten')).toBeInTheDocument(); expect(screen.getByLabelText('Wichtig')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Tomaten bearbeiten'})); fireEvent.change(screen.getByLabelText('Notiz'),{target:{value:'reif'}}); fireEvent.click(screen.getByRole('button',{name:'Speichern'})); expect(screen.getByText(/reif/)).toBeInTheDocument();
+  });
+  it('wechselt Listen und hält Artikel getrennt', () => {
+    render(<App/>); add('Milch'); fireEvent.change(screen.getByLabelText('Neue Liste'),{target:{value:'Baumarkt'}}); fireEvent.click(screen.getByRole('button',{name:'Liste anlegen'})); add('Nägel'); expect(screen.queryByText('Milch')).not.toBeInTheDocument(); fireEvent.click(screen.getByText('Einkauf').closest('button')); expect(screen.getByText('Milch')).toBeInTheDocument();
+  });
+  it('löscht einen Artikel und bietet Undo', () => {
+    render(<App/>); add('Brot'); fireEvent.click(screen.getByRole('button',{name:'Brot löschen'})); expect(screen.queryByText('Brot')).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Rückgängig'})); expect(screen.getByText('Brot')).toBeInTheDocument();
+  });
+  it('bietet Einkaufsmodus, Offen-Filter, Fortschritt und Abschluss', () => {
+    vi.spyOn(window,'confirm').mockReturnValue(true); render(<App/>); add('Apfel'); add('Brot'); fireEvent.click(screen.getByRole('button',{name:'Apfel als erledigt markieren'})); expect(screen.getByLabelText('1 von 2 erledigt')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Einkaufen'})); fireEvent.click(screen.getByLabelText('Nur offene')); expect(screen.queryByText('Apfel')).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Einkauf abschließen'})); expect(screen.getByLabelText('0 von 1 erledigt')).toBeInTheDocument(); expect(screen.getByText('Brot')).toBeInTheDocument();
+  });
+  it('filtert, sortiert und ordnet per Tastatur-Alternative um', () => {
+    render(<App/>); add('Zitrone'); add('Apfel'); fireEvent.change(screen.getByLabelText('Artikel durchsuchen'),{target:{value:'Apfel'}}); expect(screen.queryByText('Zitrone')).not.toBeInTheDocument(); fireEvent.change(screen.getByLabelText('Artikel durchsuchen'),{target:{value:''}}); fireEvent.change(screen.getByLabelText('Sortierung'),{target:{value:'name'}}); expect(screen.getAllByRole('button',{name:/bearbeiten/})[0]).toHaveAccessibleName('Apfel bearbeiten'); fireEvent.change(screen.getByLabelText('Sortierung'),{target:{value:'custom'}}); fireEvent.click(screen.getByRole('button',{name:'Apfel nach oben'})); expect(screen.getAllByRole('button',{name:/bearbeiten/})[0]).toHaveAccessibleName('Apfel bearbeiten');
+  });
+});
+
+describe('Express', () => {
+  it('liefert exakt den Healthcheck', async()=>{const res=await request(createApp()).get('/health');expect(res.status).toBe(200);expect(res.body).toEqual({ok:true});});
+  it('liefert die gebaute Root-HTML',async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'shop-'));fs.writeFileSync(path.join(dir,'index.html'),'<!doctype html><div id="root"></div>');const res=await request(createApp({staticDir:dir})).get('/');expect(res.status).toBe(200);expect(res.type).toMatch(/html/);});
 });
