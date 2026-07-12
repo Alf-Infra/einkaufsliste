@@ -22,6 +22,17 @@ describe('Schema und reine Logik', () => {
     const items = [{ id:'1',name:'Zitrone',note:'Bio',category:'Obst',completed:false },{ id:'2',name:'Apfel',note:'rot',category:'Obst',completed:true }];
     expect(filterItems(items, 'bio')).toHaveLength(1); expect(sortItems(items, 'name')[0].name).toBe('Apfel'); expect(sortItems(items, 'status')[0].name).toBe('Zitrone'); expect(groupItems(items)).toHaveProperty('Erledigt');
   });
+  it('ordnet im Einkaufsmodus alle offenen Gruppen vor Erledigt ein', () => {
+    const items = [
+      { id: '1', name: 'Alt', category: 'Haushalt', completed: true },
+      { id: '2', name: 'Milch', category: 'Kühlregal', completed: false },
+      { id: '3', name: 'Apfel', category: 'Obst & Gemüse', completed: false },
+      { id: '4', name: 'Fertig', category: 'Backwaren', completed: true },
+    ];
+    const groups = groupItems(items);
+    expect(Object.keys(groups)).toEqual(['Kühlregal', 'Obst & Gemüse', 'Erledigt']);
+    expect(groups.Erledigt.map((item) => item.name)).toEqual(['Alt', 'Fertig']);
+  });
   it('erkennt offene Duplikate ohne Großschreibung zu beachten', () => {
     const items = [{ id:'1',name:'Milch',completed:false },{ id:'2',name:'Brot',completed:true }];
     expect(duplicateOpenItem(items, 'milch').id).toBe('1'); expect(duplicateOpenItem(items, 'brot')).toBeUndefined();
@@ -57,6 +68,26 @@ describe('App-Abläufe', () => {
   });
   it('filtert, sortiert und ordnet per Tastatur-Alternative um', () => {
     render(<App/>); add('Zitrone'); add('Apfel'); fireEvent.change(screen.getByLabelText('Artikel durchsuchen'),{target:{value:'Apfel'}}); expect(screen.queryByText('Zitrone')).not.toBeInTheDocument(); fireEvent.change(screen.getByLabelText('Artikel durchsuchen'),{target:{value:''}}); fireEvent.change(screen.getByLabelText('Sortierung'),{target:{value:'name'}}); expect(screen.getAllByRole('button',{name:/bearbeiten/})[0]).toHaveAccessibleName('Apfel bearbeiten'); fireEvent.change(screen.getByLabelText('Sortierung'),{target:{value:'custom'}}); fireEvent.click(screen.getByRole('button',{name:'Apfel nach oben'})); expect(screen.getAllByRole('button',{name:/bearbeiten/})[0]).toHaveAccessibleName('Apfel bearbeiten');
+  });
+  it('hält die Tastatur-Umordnung auch im mobilen Layout verfügbar', () => {
+    render(<App/>); add('Zitrone'); add('Apfel');
+    const up = screen.getByRole('button', { name: 'Apfel nach oben' });
+    expect(up).toBeVisible(); fireEvent.click(up);
+    expect(screen.getAllByRole('button', { name: /bearbeiten/ })[0]).toHaveAccessibleName('Apfel bearbeiten');
+    const css = fs.readFileSync(path.resolve('src/styles.css'), 'utf8');
+    expect(css).not.toMatch(/@media\(max-width:760px\)[\s\S]*?\.move-buttons\s*\{\s*display\s*:\s*none/);
+  });
+  it('hält den Fokus im Artikeldialog, schließt mit Escape und gibt Fokus zurück', async () => {
+    render(<App/>); const trigger = screen.getByRole('button', { name: 'Details' }); trigger.focus(); fireEvent.click(trigger);
+    expect(screen.getByLabelText('Name')).toHaveFocus();
+    const save = screen.getByRole('button', { name: 'Speichern' }); save.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Dialog schließen' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(save).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 });
 

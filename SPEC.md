@@ -247,3 +247,12 @@ Die App soll weiterhin ohne Login, Cloud und externe Datenbank funktionieren. Im
 - Bestehende v1.1-LocalStorage-Daten werden migriert.
 - Responsive und barrierearme Kernablaeufe sind implementiert.
 - Git-Commit fuer v2.0 erzeugt.
+
+## Iteration v2.0 — verpflichtender Review-Retry
+
+Das erste Review hat den Deploy mit folgenden Findings blockiert. Diese Punkte muessen im zweiten Build-Versuch vollstaendig behoben und durch Regressionstests abgesichert werden:
+
+- Im Einkaufsmodus muessen saemtliche offenen Kategoriegruppen immer vor der Gruppe „Erledigt“ erscheinen, unabhaengig von der gespeicherten Artikelreihenfolge.
+- Die Tastatur-Alternative zur Drag-and-drop-Sortierung muss auch bei Viewports bis 760 px sichtbar und bedienbar bleiben.
+- Der Artikeldialog braucht vollstaendige modale Fokusfuehrung: Fokus im Dialog halten, Escape zum Schliessen und Fokus nach dem Schliessen an den Ausloeser zurueckgeben.
+- Tests muessen die gemischte Gruppenreihenfolge, responsive Tastatur-Umordnung und Dialog-Fokusfuehrung explizit abdecken.

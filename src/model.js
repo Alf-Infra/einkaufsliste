@@ -16,11 +16,12 @@ export function sortItems(items, sort = 'custom') {
 }
 
 export function groupItems(items) {
-  return items.reduce((groups, item) => {
-    const key = item.completed ? 'Erledigt' : item.category;
-    (groups[key] ||= []).push(item);
+  const openGroups = items.reduce((groups, item) => {
+    if (!item.completed) (groups[item.category] ||= []).push(item);
     return groups;
   }, {});
+  const completed = items.filter((item) => item.completed);
+  return completed.length ? { ...openGroups, Erledigt: completed } : openGroups;
 }
 
 const updateActive = (state, updater) => ({ ...state, lists: state.lists.map((l) => l.id === state.activeListId ? updater(l) : l) });
