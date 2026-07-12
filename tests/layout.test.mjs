@@ -25,7 +25,20 @@ try {
     await page.getByRole('button', { name: 'Hinzufügen' }).click();
     await page.getByRole('button', { name: 'Milch nach oben' }).waitFor({ state: 'visible' });
   }
-  console.log('Layouttest: 320 px, 390 px und 430 px ohne horizontalen Overflow');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`http://127.0.0.1:${port}`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Listen öffnen' }).click();
+  const renameTrigger = page.getByRole('button', { name: 'Umbenennen' });
+  await renameTrigger.focus();
+  await renameTrigger.press('Enter');
+  await page.getByRole('dialog', { name: 'Liste umbenennen' }).waitFor();
+  await page.keyboard.press('Escape');
+  assert.equal(await renameTrigger.evaluate((trigger) => document.activeElement === trigger), true, 'Escape gibt den Fokus nicht an Umbenennen zurück');
+
+  await renameTrigger.press('Enter');
+  await page.getByRole('dialog', { name: 'Liste umbenennen' }).getByRole('button', { name: 'Abbrechen' }).click();
+  assert.equal(await renameTrigger.evaluate((trigger) => document.activeElement === trigger), true, 'Abbrechen gibt den Fokus nicht an Umbenennen zurück');
+  console.log('Browsertests: Layout ohne Overflow und reale Fokus-Rückgabe per Escape/Abbrechen');
 } finally {
   await browser?.close();
   server.kill('SIGTERM');
