@@ -256,3 +256,74 @@ Das erste Review hat den Deploy mit folgenden Findings blockiert. Diese Punkte m
 - Die Tastatur-Alternative zur Drag-and-drop-Sortierung muss auch bei Viewports bis 760 px sichtbar und bedienbar bleiben.
 - Der Artikeldialog braucht vollstaendige modale Fokusfuehrung: Fokus im Dialog halten, Escape zum Schliessen und Fokus nach dem Schliessen an den Ausloeser zurueckgeben.
 - Tests muessen die gemischte Gruppenreihenfolge, responsive Tastatur-Umordnung und Dialog-Fokusfuehrung explizit abdecken.
+
+---
+
+# SPEC - Einkaufsliste v2.0.1
+
+**Slug:** einkaufsliste
+**Iteration:** v2.0.1
+**Type:** bug-fix
+**Port:** 3106
+**Eingegangen:** 2026-07-12T09:17:18Z
+
+## Beschreibung
+
+Nach dem v2.0-Deployment wurde die reale Anwendung unabhaengig in Desktop- und Mobilgroesse visuell geprueft. Funktional ist v2.0 stark, die Abnahme ergab jedoch vier konkrete Abweichungen von der beabsichtigten Qualitaet. Diese Iteration behebt sie ohne den bestehenden Funktionsumfang oder gespeicherte Nutzerdaten zu beeintraechtigen.
+
+## Acceptance Criteria
+
+### Mobiles Layout
+
+- [ ] Bei Viewportbreiten von 320 px, 390 px und 430 px entsteht kein horizontaler Seiten-Overflow (`document.documentElement.scrollWidth <= document.documentElement.clientWidth`).
+- [ ] Die komplette Kopfzeile inklusive Listenmenue, Titel, Fortschritt und Moduswechsel bleibt sichtbar und bedienbar; Elemente duerfen sinnvoll umbrechen oder kompakter dargestellt werden.
+- [ ] Die Schnelleingabe inklusive Eingabefeld, Details und Hinzufuegen bleibt vollstaendig sichtbar und touchfreundlich; ein mehrzeiliges Layout ist erlaubt und empfohlen.
+- [ ] Such-, Sortier- und Artikelfunktionen bleiben bei 320 px ohne Abschneiden erreichbar.
+- [ ] Desktop- und Tablet-Layout bleiben visuell stabil und verlieren keine bestehenden Funktionen.
+
+### Konsistente App-Dialoge
+
+- [ ] `window.prompt`, `window.confirm` und vergleichbare native Browserdialoge werden aus den Listen- und Einkaufsablaeufen entfernt.
+- [ ] Liste umbenennen verwendet einen gestalteten App-Dialog mit validierter Eingabe.
+- [ ] Das Loeschen einer nicht-leeren Liste verwendet einen gestalteten Bestaetigungsdialog mit klarer destruktiver Aktion; das Loeschen einer leeren Liste bleibt bewusst und nachvollziehbar.
+- [ ] `Einkauf abschliessen` verwendet einen gestalteten Bestaetigungsdialog, der die Anzahl zu entfernender Artikel nennt.
+- [ ] Alle neuen Dialoge besitzen `role="dialog"`, `aria-modal`, einen zugänglichen Titel, initialen Fokus, Fokusfalle, Escape-Schliessen und Fokus-Rueckgabe an den Ausloeser.
+- [ ] Dialoge verwenden gemeinsame wiederverwendbare Komponenten beziehungsweise Hooks und passen visuell zum vorhandenen Artikeldialog.
+
+### Architektur
+
+- [ ] `App.jsx` wird weiter entlastet: fachlich eigenstaendige UI-Bereiche wie Dialoge, Sidebar und Artikelzeile liegen in sinnvoll benannten Komponentenmodulen.
+- [ ] Gemeinsame Dialog-Fokuslogik wird in einen wiederverwendbaren Hook oder eine gleichwertig klar gekapselte Abstraktion ausgelagert.
+- [ ] Modell-, Persistenz- und bestehende Reducer-Logik bleiben getrennt und rueckwaertskompatibel.
+- [ ] Keine rein kosmetische Dateiaufteilung: Komponenten besitzen klare Props und Verantwortlichkeiten.
+
+### Regressionstests
+
+- [ ] Bestehende Unit-/Integrationstests bleiben gruen.
+- [ ] Tests decken Umbenennen, Listenloesch-Bestaetigung und Abschluss-Bestaetigung ueber die neuen App-Dialoge ab.
+- [ ] Tests decken Fokusfalle, Escape und Fokus-Rueckgabe mindestens fuer die gemeinsame Dialog-Abstraktion oder einen der neuen Dialogablaeufe ab.
+- [ ] Ein echter Browser-basierter Layouttest rendert die gebaute oder laufende App mindestens bei 320 px, 390 px und 430 px und prueft per `scrollWidth/clientWidth`, dass kein horizontaler Seiten-Overflow existiert.
+- [ ] Der Browser-Test wird als reproduzierbares npm-Script oder in die regulaere Test-Suite integriert und darf kein blosses Regex-/CSS-Datei-Parsing sein.
+- [ ] `npm test`, `npm run build`, Start auf `process.env.PORT`, Root-Route und `/health` bleiben gruen.
+
+## Design- und Implementierungshinweise
+
+- Auf kleinen Viewports duerfen Topbar und Schnelleingabe in mehrere Zeilen umbrechen. Primaeraktionen muessen vollstaendig beschriftet oder mit eindeutigem zugänglichem Namen dargestellt werden.
+- Ein gemeinsamer generischer Dialograhmen und spezialisierte Inhaltskomponenten sind einer mehrfach kopierten Fokusimplementierung vorzuziehen.
+- Vorhandene LocalStorage-Keys und Schema-v3-Daten nicht loeschen oder inkompatibel veraendern.
+- Keine neue UI-Komplettbibliothek einfuehren.
+
+## Nicht-Ziele
+
+- Keine neuen Produktfeatures ausserhalb der genannten Nachbesserungen.
+- Keine Cloud-, Login- oder Backend-Erweiterung.
+- Kein Redesign der bereits gelungenen Desktop-Grundrichtung.
+
+## Definition of Done
+
+- Alle v2.0.1-Acceptance-Criteria umgesetzt.
+- Kein horizontaler Overflow in realem Chromium bei 320/390/430 px.
+- Native Prompt-/Confirm-Dialoge vollstaendig aus den betroffenen Ablaeufen entfernt.
+- UI nachvollziehbar modularisiert und gemeinsame Dialoglogik wiederverwendet.
+- Tests, Browser-Layouttest, Build und HTTP-Smoke gruen.
+- Git-Commit fuer v2.0.1 erzeugt.

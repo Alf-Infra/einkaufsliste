@@ -19,3 +19,9 @@
 - Codex-Commits: `efe361f` (v2.0-Build), `5d5bbe1` (Review-Fixes)
 - Deploy: 2026-07-12, Port 3106, PM2 `einkaufsliste`, GitHub https://github.com/Alf-Infra/einkaufsliste
 - Besonderheiten: Versionierte LocalStorage-Migration, Einkaufsmodus, responsive Tastaturbedienung und barrierearme Dialog-Fokusfuehrung; final 18/18 Tests und Review-Gate gruen. Login, Cloud-Sync und externe Datenbank bleiben bewusst ausserhalb des Scopes.
+
+### v2.0.1 (2026-07-12)
+- Auftrag: Mobile Overflow-Probleme bei 320-430 px beheben, native Browserdialoge durch konsistente App-Dialoge ersetzen, UI-Komponenten weiter modularisieren und reale Browser-Layouttests ergaenzen.
+- Codex-Commits: ausstehend
+- Deploy: ausstehend
+- Besonderheiten: Nachbesserung aus der visuellen Post-Deploy-Abnahme von v2.0; bestehende Funktionen und Schema-v3-Daten muessen erhalten bleiben.
