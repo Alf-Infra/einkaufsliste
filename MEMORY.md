@@ -13,3 +13,9 @@
 - Codex-Commits: `b9f65d0` (Build)
 - Deploy: 2026-05-30, Port 3106, PM2 `einkaufsliste`, GitHub https://github.com/Alf-Infra/einkaufsliste
 - Besonderheiten: Nutzer koennen benannte Listen anlegen, wechseln und loeschen; Artikel bleiben pro Liste getrennt. Persistenz weiterhin per LocalStorage; Tests/Review gruen.
+
+### v2.0 (2026-07-12)
+- Auftrag: Ausbau zum hochwertigen Local-first Shopping Planner mit reichhaltigen Artikeln, Einkaufsmodus, Suche/Sortierung/Umordnung, Undo, Datenmigration und umfassendem responsive UX-Redesign.
+- Codex-Commits: ausstehend
+- Deploy: ausstehend
+- Besonderheiten: Anspruchsvolle, aber fokussierte Iteration als Programmier- und UX-Test fuer GPT-5.6-sol; Login, Cloud-Sync und externe Datenbank bleiben bewusst ausserhalb des Scopes.

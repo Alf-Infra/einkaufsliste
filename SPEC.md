@@ -136,3 +136,114 @@ Erweitere die bestehende Einkaufslisten-App so, dass Nutzer mehrere eigene Liste
 - `/health` Endpoint OK
 - Root-Route liefert HTML
 - Git-Commit fuer v1.1 erzeugt
+
+---
+
+# SPEC - Einkaufsliste v2.0
+
+**Slug:** einkaufsliste
+**Iteration:** v2.0
+**Type:** feature
+**Port:** 3106
+**Eingegangen:** 2026-07-12T07:38:29Z
+
+## Beschreibung
+
+Kevin moechte die bestehende Einkaufslisten-App zu einem anspruchsvolleren, alltagstauglichen Local-first Shopping Planner mit hochwertigem UX-Design weiterentwickeln. Die Iteration dient zugleich als aussagekraeftiger Test der Programmierfaehigkeiten von GPT-5.6-sol. Bestehende Nutzerdaten muessen migriert und erhalten bleiben.
+
+Die App soll weiterhin ohne Login, Cloud und externe Datenbank funktionieren. Im Mittelpunkt stehen ein reichhaltigeres Artikeldatenmodell, ein fokussierter Einkaufsmodus, bessere Organisation, sichere Interaktionen und eine responsive Oberflaeche auf dem Niveau einer sorgfaeltig gestalteten nativen Produktivitaets-App.
+
+## Acceptance Criteria
+
+### Datenmodell und Artikelfunktionen
+
+- [ ] Artikel besitzen Name, optionale Menge, optionale Einheit, Kategorie, optionale Notiz, Wichtig-Markierung, Erledigt-Status und eine stabile ID.
+- [ ] Die schnelle Eingabe eines Artikelnamens bleibt direkt und mit Tastatur bedienbar; optionale Details koennen ohne Seitenwechsel erfasst werden.
+- [ ] Bestehende Artikel koennen vollstaendig bearbeitet werden.
+- [ ] Leere Artikelnamen werden nicht gespeichert.
+- [ ] Beim Hinzufuegen eines bereits vorhandenen offenen Artikels derselben Liste wird ein Duplikat verhindert oder eine klare, zugängliche Entscheidung angeboten.
+- [ ] Artikel koennen als wichtig markiert und visuell eindeutig erkannt werden.
+
+### Einkaufsmodus
+
+- [ ] Jede Liste kann zwischen Planungsansicht und fokussiertem Einkaufsmodus wechseln.
+- [ ] Der Einkaufsmodus verwendet grosse Touch-Ziele und gruppiert Artikel sinnvoll nach Kategorie.
+- [ ] Offene und erledigte Artikel sind klar getrennt; erledigte Artikel beziehungsweise Gruppen erscheinen nach den offenen Inhalten.
+- [ ] Ein sichtbarer Fortschritt zeigt erledigte und gesamte Artikel an.
+- [ ] Ein Filter kann im Einkaufsmodus nur offene Artikel anzeigen.
+- [ ] "Einkauf abschliessen" entfernt nach einer Bestaetigung gesammelt die erledigten Artikel, ohne offene Artikel zu veraendern.
+
+### Organisation
+
+- [ ] Listen koennen angelegt, umbenannt, dupliziert, gewechselt und geloescht werden.
+- [ ] Das Loeschen einer nicht-leeren Liste verlangt eine Bestaetigung.
+- [ ] Artikel koennen per Textsuche gefiltert werden; mindestens Name und Notiz werden durchsucht.
+- [ ] Sortierung nach eigener Reihenfolge, Kategorie, Name und Status wird unterstuetzt.
+- [ ] In der eigenen Sortierung koennen Artikel per Drag-and-drop umgeordnet werden; eine gleichwertige Tastatur-Alternative muss vorhanden sein.
+- [ ] Lokal gespeicherte, haeufig verwendete Artikel werden bei der Eingabe als Vorschlaege angeboten, ohne die Eingabe zu blockieren.
+- [ ] Sinnvolle Empty States erklaeren den jeweils naechsten moeglichen Schritt.
+
+### Fehlbedienung und Persistenz
+
+- [ ] Das Loeschen einzelner Artikel bietet eine zeitlich begrenzte Undo-Aktion.
+- [ ] Listen und Artikel bleiben nach Reload vollstaendig im LocalStorage erhalten.
+- [ ] Das bisherige Format `einkaufsliste-state-v2` wird versioniert in das neue Schema migriert, ohne vorhandene Listen oder Artikel zu verlieren.
+- [ ] Beschaedigte oder unvollstaendige LocalStorage-Daten werden defensiv normalisiert; die App bleibt benutzbar.
+- [ ] Die lokale Artikelhistorie enthaelt keine unbeschraenkt wachsenden oder duplizierten Eintraege.
+
+### UX, Responsive Design und Accessibility
+
+- [ ] Desktop verwendet eine kompakte Listen-Sidebar und eine grosszuegige Arbeitsflaeche.
+- [ ] Auf Mobilgeraeten ist die Listenverwaltung als Drawer oder vergleichbar platzsparende Navigation umgesetzt und verdeckt die Arbeitsflaeche nicht dauerhaft.
+- [ ] Die Oberflaeche hat eine konsistente visuelle Hierarchie, hochwertige Typografie, klare Abstaende und ein zusammenhaengendes Farb- und Komponentensystem.
+- [ ] Light und Dark Mode folgen mindestens der Systemeinstellung und bleiben in beiden Modi gut lesbar.
+- [ ] Hinzufuegen, Abhaken, Sortieren und Undo erhalten dezente, zweckmaessige Rueckmeldung; `prefers-reduced-motion` wird respektiert.
+- [ ] Alle Kernfunktionen sind per Tastatur bedienbar und besitzen sichtbare Fokuszustaende, verstaendliche Labels und sinnvolle Dialog-Fokusfuehrung.
+- [ ] Touch-Ziele sind auf mobilen Ansichten ausreichend gross.
+- [ ] Layout und Interaktionen funktionieren ab 320 px Breite sowie auf typischen Tablet- und Desktop-Breiten ohne horizontalen Seiten-Overflow.
+
+### Architektur und Qualitaet
+
+- [ ] Die bisher monolithische `App.jsx` wird in fachlich sinnvolle Komponenten, Hooks und reine Hilfsfunktionen aufgeteilt.
+- [ ] Zentrale Zustandsaenderungen verwenden einen nachvollziehbaren Reducer mit testbaren Actions.
+- [ ] Persistenz, Schema-Normalisierung und Migration sind von UI-Komponenten getrennt.
+- [ ] Sortier-, Filter- und Gruppierungslogik liegt in wiederverwendbaren reinen Funktionen.
+- [ ] Tests decken mindestens Migration, defensive Normalisierung, Artikelbearbeitung, Duplikatbehandlung, Listenaktionen, Suche, Sortierung, Umordnung, Undo, Einkaufsmodus, Abschlussaktion, Persistenz und `/health` ab.
+- [ ] `GET /health` liefert weiterhin exakt `{ "ok": true }`.
+
+## Stack-Pflicht
+
+- Bestehenden Stack beibehalten: Node.js, Express, Vite, React und Vitest/Testing Library.
+- `process.env.PORT` bleibt primaere Port-Quelle; Fallback ist `PORT.txt`.
+- `npm test`, `npm run build` und `npm start` muessen funktionieren.
+- Express liefert nach dem Build `dist/` und den Healthcheck aus.
+- Kleine, gut begruendete Dependencies fuer robuste Interaktionen wie Drag-and-drop sind erlaubt; keine UI-Komplettbibliothek, die den wesentlichen Design- oder Architekturteil ersetzt.
+
+## Designrichtung
+
+- Ruhige, moderne Produktivitaets-App statt generischem Dashboard oder Marketing-Landingpage.
+- Direkt nutzbare Arbeitsoberflaeche, geringe visuelle Reibung und progressive Offenlegung komplexerer Artikeldetails.
+- Icons aus `lucide-react` duerfen weiterverwendet werden.
+- Destruktive Aktionen klar von primaeren Aktionen trennen.
+- Keine dekorativen Effekte, die Lesbarkeit oder Bediengeschwindigkeit beeintraechtigen.
+
+## Nicht-Ziele
+
+- Kein Login und keine Benutzerkonten.
+- Keine Cloud- oder Mehrbenutzer-Synchronisierung.
+- Keine externe Datenbank.
+- Kein Teilen von Listen.
+- Keine Push-Benachrichtigungen.
+- Kein Preisvergleich und keine Haendlerintegration.
+- Kein eigener Service Worker/PWA-Zwang fuer diese Iteration.
+
+## Definition of Done
+
+- Alle Acceptance Criteria nachvollziehbar umgesetzt.
+- Tests gruen und substanziell erweitert.
+- Produktions-Build erfolgreich.
+- App startet auf einem abweichenden Test-Port aus `process.env.PORT`.
+- `/health` und Root-Route funktionieren.
+- Bestehende v1.1-LocalStorage-Daten werden migriert.
+- Responsive und barrierearme Kernablaeufe sind implementiert.
+- Git-Commit fuer v2.0 erzeugt.
