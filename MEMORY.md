@@ -22,6 +22,6 @@
 
 ### v2.0.1 (2026-07-12)
 - Auftrag: Mobile Overflow-Probleme bei 320-430 px beheben, native Browserdialoge durch konsistente App-Dialoge ersetzen, UI-Komponenten weiter modularisieren und reale Browser-Layouttests ergaenzen.
-- Codex-Commits: ausstehend
-- Deploy: ausstehend
-- Besonderheiten: Nachbesserung aus der visuellen Post-Deploy-Abnahme von v2.0; bestehende Funktionen und Schema-v3-Daten muessen erhalten bleiben.
+- Codex-Commits: `7fb18df`
+- Deploy: 2026-07-12, Port 3106, PM2 `einkaufsliste`, GitHub https://github.com/Alf-Infra/einkaufsliste
+- Besonderheiten: Chromium-Layouttests bestaetigen 320/390/430 px ohne horizontalen Overflow; native Browserdialoge wurden durch zugaengliche App-Dialoge ersetzt und UI/Fokuslogik modularisiert. Final 21/21 Tests und Review-Gate gruen; Schema-v3-Daten bleiben erhalten.
