@@ -1,6 +1,6 @@
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import request from 'supertest'; import App from '../src/App.jsx'; import { createApp } from '../src/server';
 import { LEGACY_STORAGE_KEY, SCHEMA_VERSION, STORAGE_KEY, createDefaultState, normalizeState } from '../src/storage';
 import { duplicateOpenItem, filterItems, groupItems, reducer, sortItems } from '../src/model';
@@ -63,8 +63,15 @@ describe('App-Abläufe', () => {
   it('löscht einen Artikel und bietet Undo', () => {
     render(<App/>); add('Brot'); fireEvent.click(screen.getByRole('button',{name:'Brot löschen'})); expect(screen.queryByText('Brot')).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Rückgängig'})); expect(screen.getByText('Brot')).toBeInTheDocument();
   });
-  it('bietet Einkaufsmodus, Offen-Filter, Fortschritt und Abschluss', () => {
-    vi.spyOn(window,'confirm').mockReturnValue(true); render(<App/>); add('Apfel'); add('Brot'); fireEvent.click(screen.getByRole('button',{name:'Apfel als erledigt markieren'})); expect(screen.getByLabelText('1 von 2 erledigt')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Einkaufen'})); fireEvent.click(screen.getByLabelText('Nur offene')); expect(screen.queryByText('Apfel')).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Einkauf abschließen'})); expect(screen.getByLabelText('0 von 1 erledigt')).toBeInTheDocument(); expect(screen.getByText('Brot')).toBeInTheDocument();
+  it('bietet Einkaufsmodus, Offen-Filter, Fortschritt und Abschlussdialog', () => {
+    render(<App/>); add('Apfel'); add('Brot'); fireEvent.click(screen.getByRole('button',{name:'Apfel als erledigt markieren'})); expect(screen.getByLabelText('1 von 2 erledigt')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Einkaufen'})); fireEvent.click(screen.getByLabelText('Nur offene')); expect(screen.queryByText('Apfel')).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:'Einkauf abschließen'})); expect(screen.getByRole('dialog',{name:'Einkauf abschließen'})).toHaveTextContent('1 erledigter Artikel'); fireEvent.click(screen.getByRole('button',{name:'1 entfernen'})); expect(screen.getByLabelText('0 von 1 erledigt')).toBeInTheDocument(); expect(screen.getByText('Brot')).toBeInTheDocument();
+  });
+  it('benennt Listen über den validierten App-Dialog um', () => {
+    render(<App/>); const trigger = screen.getByRole('button',{name:/Umbenennen/}); fireEvent.click(trigger); const modal = screen.getByRole('dialog',{name:'Liste umbenennen'}); const input = screen.getByLabelText('Listenname'); expect(input).toHaveFocus(); fireEvent.change(input,{target:{value:'  '}}); expect(within(modal).getByRole('button',{name:'Umbenennen'})).toBeDisabled(); fireEvent.change(input,{target:{value:'Wochenmarkt'}}); fireEvent.click(within(modal).getByRole('button',{name:'Umbenennen'})); expect(screen.getByRole('heading',{name:'Wochenmarkt'})).toBeInTheDocument();
+  });
+  it('bestätigt das Löschen nicht-leerer und leerer Listen im App-Dialog', () => {
+    render(<App/>); add('Milch'); fireEvent.click(screen.getByRole('button',{name:/Löschen/})); expect(screen.getByRole('dialog',{name:'Liste löschen'})).toHaveTextContent('1 Artikel'); fireEvent.click(screen.getByRole('button',{name:'Abbrechen'})); expect(screen.getByText('Milch')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button',{name:/Löschen/})); fireEvent.click(screen.getByRole('button',{name:'Liste löschen'})); expect(screen.getByRole('heading',{name:'Einkauf'})).toBeInTheDocument(); expect(screen.queryByText('Milch')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:/Löschen/})); expect(screen.getByRole('dialog',{name:'Liste löschen'})).toHaveTextContent('leere Liste'); fireEvent.click(screen.getByRole('button',{name:'Liste löschen'})); expect(screen.getByRole('heading',{name:'Einkauf'})).toBeInTheDocument();
   });
   it('filtert, sortiert und ordnet per Tastatur-Alternative um', () => {
     render(<App/>); add('Zitrone'); add('Apfel'); fireEvent.change(screen.getByLabelText('Artikel durchsuchen'),{target:{value:'Apfel'}}); expect(screen.queryByText('Zitrone')).not.toBeInTheDocument(); fireEvent.change(screen.getByLabelText('Artikel durchsuchen'),{target:{value:''}}); fireEvent.change(screen.getByLabelText('Sortierung'),{target:{value:'name'}}); expect(screen.getAllByRole('button',{name:/bearbeiten/})[0]).toHaveAccessibleName('Apfel bearbeiten'); fireEvent.change(screen.getByLabelText('Sortierung'),{target:{value:'custom'}}); fireEvent.click(screen.getByRole('button',{name:'Apfel nach oben'})); expect(screen.getAllByRole('button',{name:/bearbeiten/})[0]).toHaveAccessibleName('Apfel bearbeiten');
@@ -88,6 +95,9 @@ describe('App-Abläufe', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+  it('nutzt Fokusfalle, Escape und Fokus-Rückgabe auch im gemeinsamen Listendialog', async () => {
+    render(<App/>); const trigger = screen.getByRole('button',{name:/Umbenennen/}); trigger.focus(); fireEvent.click(trigger); const modal = screen.getByRole('dialog',{name:'Liste umbenennen'}); const input = screen.getByLabelText('Listenname'); expect(input).toHaveFocus(); const rename = within(modal).getByRole('button',{name:'Umbenennen'}); rename.focus(); fireEvent.keyDown(document,{key:'Tab'}); expect(screen.getByRole('button',{name:'Dialog schließen'})).toHaveFocus(); fireEvent.keyDown(document,{key:'Escape'}); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); await waitFor(()=>expect(trigger).toHaveFocus());
   });
 });
 

@@ -1,0 +1,32 @@
+import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+
+const port = 43106;
+const server = spawn(process.execPath, ['src/server.js'], { env: { ...process.env, PORT: String(port) }, stdio: 'pipe' });
+let browser;
+
+try {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try { if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) break; } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (attempt === 49) throw new Error('Express-Server wurde nicht rechtzeitig bereit');
+  }
+  browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`http://127.0.0.1:${port}`, { waitUntil: 'networkidle' });
+    const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    assert.ok(dimensions.scrollWidth <= dimensions.clientWidth, `${width}px: horizontaler Overflow ${dimensions.scrollWidth} > ${dimensions.clientWidth}`);
+    await page.getByRole('button', { name: 'Listen öffnen' }).click();
+    await page.getByRole('button', { name: 'Listen schließen' }).click();
+    await page.getByLabel('Artikel hinzufügen').fill('Milch');
+    await page.getByRole('button', { name: 'Hinzufügen' }).click();
+    await page.getByRole('button', { name: 'Milch nach oben' }).waitFor({ state: 'visible' });
+  }
+  console.log('Layouttest: 320 px, 390 px und 430 px ohne horizontalen Overflow');
+} finally {
+  await browser?.close();
+  server.kill('SIGTERM');
+}
